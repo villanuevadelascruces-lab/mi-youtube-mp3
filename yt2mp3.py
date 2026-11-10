@@ -6,8 +6,43 @@ Downloads YouTube videos as MP3 files using yt-dlp and ffmpeg.
 
 import os
 import sys
+import shutil
 import subprocess
+import concurrent.futures
 from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+
+# Salida robusta: si stdout no es una consola (p. ej. redireccionado o canalizado),
+# forzar UTF-8 para que los emojis y acentos no rompan el programa.
+if not sys.stdout.isatty():
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+
+def find_ffmpeg_dir():
+    """
+    Localiza la carpeta con ffmpeg.exe.
+
+    Orden de busqueda:
+      1. Carpeta 'ffmpeg\\bin' junto a este script (la instala instalar.bat)
+      2. Carpeta 'ffmpeg' junto a este script
+      3. En el PATH del sistema (yt-dlp la encuentra sola)
+
+    Devuelve la carpeta a anteponer al PATH, o None si ya no hace falta.
+    """
+    for candidate in (BASE_DIR / "ffmpeg" / "bin", BASE_DIR / "ffmpeg"):
+        if (candidate / "ffmpeg.exe").is_file():
+            return str(candidate)
+    return None
+
+
+def ffmpeg_available():
+    """Comprueba que ffmpeg sea accesible (local o en el PATH)."""
+    if find_ffmpeg_dir():
+        return True
+    return shutil.which("ffmpeg") is not None
+
 
 def download_video(url, output_dir=".", no_playlist=False):
     """
@@ -17,7 +52,7 @@ def download_video(url, output_dir=".", no_playlist=False):
     output_path.mkdir(parents=True, exist_ok=True)
     
     cmd = [
-        r'C:\Python314\python.exe', '-m', 'yt_dlp',
+        sys.executable, '-m', 'yt_dlp',
         '--extract-audio',
         '--audio-format', 'mp3',
         '--audio-quality', '192',
@@ -31,12 +66,13 @@ def download_video(url, output_dir=".", no_playlist=False):
     
     try:
         env = os.environ.copy()
-        ffmpeg_bin = r"C:\Users\las_c\AppData\Local\hermes\tools\ffmpeg-9.0.1-win32-x64\bin"
-        env["PATH"] = ffmpeg_bin + os.pathsep + env.get("PATH", "")
+        ffmpeg_dir = find_ffmpeg_dir()
+        if ffmpeg_dir:
+            env["PATH"] = ffmpeg_dir + os.pathsep + env.get("PATH", "")
         
         result = subprocess.run(
             cmd,
-            cwd=os.path.dirname(__file__),
+            cwd=str(BASE_DIR),
             env=env
         )
         return result.returncode == 0
@@ -44,16 +80,17 @@ def download_video(url, output_dir=".", no_playlist=False):
         print(f"Exception during download: {e}")
         return False
 
-
-import concurrent.futures
-
 def main():
     print("========================================")
     print("      DESCARGADOR DE YOUTUBE A MP3      ")
     print("========================================")
     
+    if not ffmpeg_available():
+        print("\n⚠️  AVISO: no se encontró ffmpeg en este equipo.")
+        print("   La conversión a MP3 fallará. Ejecuta instalar.bat para arreglarlo.\n")
+    
     # Determine output directory
-    default_output_dir = os.path.join(os.path.dirname(__file__), "Música descargada")
+    default_output_dir = str(BASE_DIR / "Música descargada")
     output_dir = default_output_dir
     
     # Ask for output directory only once at start
