@@ -223,3 +223,6 @@ __marimo__/
 .venv/
 ffmpeg/
 Música descargada/
+config.json
+yt2mp3.log
+YT2MP3_*.zip

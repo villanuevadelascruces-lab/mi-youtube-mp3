@@ -4,7 +4,9 @@ rem  YT2MP3 - Instalador automatico (Windows)
 rem  - Instala Python si falta
 rem  - Crea un entorno virtual con yt-dlp
 rem  - Descarga FFmpeg en la carpeta del proyecto
-rem  - Crea el acceso directo "YT2MP3" en el escritorio
+rem  - Crea dos accesos directos en el escritorio:
+rem      "YT2MP3"            interfaz web en el navegador
+rem      "YT2MP3 (Terminal)" version clasica de terminal
 rem  No necesita permisos de administrador.
 rem ============================================================
 setlocal
@@ -22,7 +24,7 @@ echo.
 echo    [1/4] Python            (solo si falta en tu equipo)
 echo    [2/4] Entorno y librerias (yt-dlp)
 echo    [3/4] FFmpeg            (para convertir a MP3)
-echo    [4/4] Icono en el escritorio
+echo    [4/4] Iconos en el escritorio (web y terminal)
 echo.
 echo  No necesitas hacer nada. Puede tardar unos minutos
 echo  si es la primera vez (descarga unos 110 MB en total).
@@ -150,17 +152,19 @@ echo        FFmpeg instalado en la carpeta del proyecto.
 echo.
 
 rem ============================================================
-rem [4/4] ACCESO DIRECTO EN EL ESCRITORIO
+rem [4/4] ACCESOS DIRECTOS EN EL ESCRITORIO
 rem ============================================================
 :shortcut
-echo  [4/4] Creando el acceso directo en el escritorio...
+echo  [4/4] Creando los accesos directos en el escritorio...
 set "YT2MP3_DIR=%~dp0"
-powershell -NoProfile -Command "try { $ws = New-Object -ComObject WScript.Shell; $desktop = [Environment]::GetFolderPath('Desktop'); $lnk = Join-Path $desktop 'YT2MP3.lnk'; $s = $ws.CreateShortcut($lnk); $s.TargetPath = Join-Path $env:YT2MP3_DIR 'yt2mp3.bat'; $s.WorkingDirectory = $env:YT2MP3_DIR; $s.IconLocation = Join-Path $env:YT2MP3_DIR 'icon.ico'; $s.Description = 'Descargador de YouTube a MP3'; $s.Save(); exit 0 } catch { exit 1 }"
+powershell -NoProfile -Command "try { $ws = New-Object -ComObject WScript.Shell; $dir = $env:YT2MP3_DIR; $desktop = [Environment]::GetFolderPath('Desktop'); $q = [char]34; $web = $ws.CreateShortcut((Join-Path $desktop 'YT2MP3.lnk')); $pyw = Join-Path $dir '.venv\Scripts\pythonw.exe'; if (Test-Path $pyw) { $web.TargetPath = $pyw; $web.Arguments = $q + (Join-Path $dir 'app.py') + $q } else { $web.TargetPath = (Join-Path $dir 'lanzar_app.bat') }; $web.WorkingDirectory = $dir; $web.IconLocation = Join-Path $dir 'icon.ico'; $web.Description = 'YT2MP3 - Descargador de YouTube a MP3 (interfaz web)'; $web.Save(); $term = $ws.CreateShortcut((Join-Path $desktop 'YT2MP3 (Terminal).lnk')); $term.TargetPath = (Join-Path $dir 'yt2mp3.bat'); $term.WorkingDirectory = $dir; $term.IconLocation = Join-Path $dir 'icon_terminal.ico'; $term.Description = 'YT2MP3 - version de terminal'; $term.Save(); exit 0 } catch { exit 1 }"
 if errorlevel 1 (
-    echo  [!] No se pudo crear el acceso directo automaticamente.
-    echo      Puedes usar la app con doble clic en yt2mp3.bat
+    echo  [!] No se pudieron crear los accesos directos automaticamente.
+    echo      Puedes usar la app con doble clic en lanzar_app.bat para la web
+    echo      o en yt2mp3.bat para la terminal.
 ) else (
-    echo        Acceso directo "YT2MP3" creado en tu escritorio.
+    echo        Icono "YT2MP3" creado: interfaz web.
+    echo        Icono de terminal creado: version clasica.
 )
 
 echo.
@@ -168,15 +172,22 @@ echo  ============================================================
 echo                 INSTALACION COMPLETADA
 echo  ============================================================
 echo.
-echo  Ya puedes cerrar esta ventana y abrir la app haciendo
-echo  doble clic en el icono YT2MP3 de tu escritorio.
+echo  En tu escritorio tienes dos accesos directos:
+echo.
+echo    "YT2MP3"             abre la interfaz web en tu navegador
+echo                         (la forma facil y recomendada)
+echo    "YT2MP3 (Terminal)"  abre la version clasica de terminal
 echo.
 echo  Para actualizar la app en el futuro, vuelve a ejecutar
 echo  instalar.bat (no descarga nada de nuevo salvo novedades).
 echo.
-choice /C SN /N /M "Quieres abrir YT2MP3 ahora? [S/N] "
+choice /C SN /N /M "Quieres abrir YT2MP3 (version web) ahora? [S/N] "
 if errorlevel 2 goto :fin
-start "YT2MP3" "%~dp0yt2mp3.bat"
+if exist "%~dp0.venv\Scripts\pythonw.exe" (
+    start "" "%~dp0.venv\Scripts\pythonw.exe" "%~dp0app.py"
+) else (
+    start "YT2MP3" "%~dp0lanzar_app.bat"
+)
 
 :fin
 echo.
