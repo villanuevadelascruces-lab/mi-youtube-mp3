@@ -77,7 +77,10 @@ def clean_error(error):
     text = re.sub(r"\x1b\[[0-9;]*m", "", text)
     first = text.splitlines()[0].strip()
     if "Sign in to confirm" in first or "not a bot" in first.lower():
-        return "YouTube ha pedido verificación. Prueba de nuevo en unos minutos."
+        return (
+            "YouTube ha pedido verificación (no eres un bot). Prueba otra vez "
+            "en unos minutos; si sigue igual, coloca un cookies.txt junto a la app."
+        )
     if "Private video" in first:
         return "El vídeo es privado."
     if "Video unavailable" in first or "not available" in first:

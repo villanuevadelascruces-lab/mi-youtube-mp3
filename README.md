@@ -137,9 +137,24 @@ archivo `yt2mp3.log`, que guarda todos los detalles.
 **Dice que falta FFmpeg**
 Cierra la app y vuelve a ejecutar `instalar.bat`. La conversión a MP3 necesita FFmpeg.
 
-**YouTube pide verificación o dice que el vídeo no está disponible**
-YouTube limita algunas descargas automáticas. Vuelve a intentarlo en unos minutos y, si
-persiste, actualiza con `instalar.bat` (YouTube cambia a menudo y yt-dlp se adapta).
+**YouTube pide verificación ("Sign in to confirm you're not a bot")**
+YouTube limita algunas descargas automáticas según el vídeo y tu conexión. La app ya lo
+intenta sola: si el cliente normal falla, reintenta con un cliente alternativo de yt-dlp.
+
+Si el aviso sigue apareciendo:
+
+1. Espera unos minutos y vuelve a intentarlo (el bloqueo suele ser temporal).
+2. Actualiza con `instalar.bat` (YouTube cambia a menudo y yt-dlp se adapta).
+3. Como solución definitiva, exporta las cookies de YouTube a un archivo **`cookies.txt`**
+   en la carpeta del proyecto. Puedes usar una extensión del navegador como
+   *Get cookies.txt LOCALLY*: inicia sesión en YouTube, exporta las cookies y guarda el
+   archivo con ese nombre exacto junto a `app.py`. La app lo detectará automáticamente.
+   Ese archivo da acceso a tu cuenta: no lo compartas ni lo subas a internet (ya está
+   excluido de Git).
+
+**Dice que el vídeo no está disponible**
+Puede ser un vídeo privado, eliminado o bloqueado en tu país. El mensaje de la propia app
+indica el motivo concreto.
 
 **El navegador no se abre solo**
 Entra manualmente en [http://127.0.0.1:8123](http://127.0.0.1:8123) mientras la app está
@@ -187,6 +202,7 @@ backend (sin Node, sin npm). El backend usa solo la biblioteca estándar de Pyth
 | `requirements.txt` | Dependencias de Python (yt-dlp) |
 | `icon.ico` | Icono del acceso directo web |
 | `icon_terminal.ico` | Icono del acceso directo de terminal |
+| `cookies.txt` | Opcional: cookies de YouTube si la app pide verificación |
 | `docs/` | Capturas usadas en este README |
 
 ## Aviso legal

@@ -14,6 +14,20 @@ import yt_dlp
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_OUTPUT_DIR = BASE_DIR / "Música descargada"
 
+# Si el usuario deja un cookies.txt junto a la app, se usa automáticamente.
+COOKIES_PATH = BASE_DIR / "cookies.txt"
+
+# YouTube a veces pide "inicia sesión para confirmar que no eres un bot" al
+# cliente web. Estos clientes alternativos de yt-dlp suelen seguir funcionando.
+FALLBACK_CLIENTS = ("android", "web_embedded")
+
+_BOT_CHECK_HINTS = (
+    "sign in to confirm",
+    "not a bot",
+    "cookies for the authentication",
+    "confirm you're not a bot",
+)
+
 
 class CancelledError(Exception):
     """Se lanza desde el hook de progreso cuando el usuario cancela."""
@@ -49,7 +63,35 @@ def _base_opts():
     ffmpeg_dir = find_ffmpeg_dir()
     if ffmpeg_dir:
         opts["ffmpeg_location"] = ffmpeg_dir
+    if COOKIES_PATH.is_file():
+        opts["cookiefile"] = str(COOKIES_PATH)
     return opts
+
+
+def _is_bot_check(error):
+    text = str(error).lower()
+    return any(hint in text for hint in _BOT_CHECK_HINTS)
+
+
+def _with_fallback(base_opts, action):
+    """
+    Ejecuta action(opts) y, si YouTube pide verificación, reintenta con los
+    clientes alternativos de yt-dlp (el cliente web es el que más se bloquea).
+    """
+    last_error = None
+    for client in (None, *FALLBACK_CLIENTS):
+        opts = dict(base_opts)
+        if client:
+            opts["extractor_args"] = {"youtube": {"player_client": [client]}}
+        try:
+            return action(opts)
+        except (CancelledError, yt_dlp.utils.DownloadCancelled):
+            raise
+        except Exception as error:  # noqa: BLE001 - se decide según el mensaje
+            if not _is_bot_check(error):
+                raise
+            last_error = error
+    raise last_error
 
 
 def _best_thumbnail(data):
@@ -63,7 +105,18 @@ def _best_thumbnail(data):
 def _clean_error(error):
     text = str(error).strip() or error.__class__.__name__
     first = text.splitlines()[0].replace("ERROR: ", "").strip()
+    if _is_bot_check(error):
+        return (
+            "YouTube ha pedido verificación (no eres un bot). "
+            "Prueba otra vez en unos minutos; si sigue igual, coloca un "
+            "cookies.txt junto a la app."
+        )
     return first[:300]
+
+
+def _extract(url, opts):
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        return ydl.extract_info(url, download=False)
 
 
 def _entry_title(entry):
@@ -102,8 +155,7 @@ def analyze_url(url):
                 "skip_download": True,
                 "playlist_items": "1",
             }
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                data = ydl.extract_info(url, download=False)
+            data = _with_fallback(opts, lambda variant: _extract(url, variant))
             entries = data.get("entries") or []
             info.update(
                 ok=True,
@@ -117,8 +169,7 @@ def analyze_url(url):
 
         # Vídeo (posiblemente con list= en la URL)
         opts = {**_base_opts(), "skip_download": True, "noplaylist": True}
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            data = ydl.extract_info(url, download=False)
+        data = _with_fallback(opts, lambda variant: _extract(url, variant))
         info.update(
             ok=True,
             kind="video",
@@ -138,8 +189,7 @@ def analyze_url(url):
                     "skip_download": True,
                     "playlist_items": "1",
                 }
-                with yt_dlp.YoutubeDL(pl_opts) as ydl:
-                    playlist = ydl.extract_info(url, download=False)
+                playlist = _with_fallback(pl_opts, lambda variant: _extract(url, variant))
                 if playlist.get("_type") == "playlist":
                     info["playlist_count"] = playlist.get("playlist_count") or len(
                         playlist.get("entries") or []
@@ -234,7 +284,7 @@ def download(job, update=None):
         "format": "bestaudio/best",
         "outtmpl": str(output_dir / template),
         "windowsfilenames": True,
-        "ignoreerrors": "only_download",
+        "ignoreerrors": False if job.get("no_playlist") else "only_download",
         "noplaylist": bool(job.get("no_playlist")),
         "progress_hooks": [progress_hook],
         "postprocessor_hooks": [postprocessor_hook],
@@ -254,7 +304,12 @@ def download(job, update=None):
             {"key": "EmbedThumbnail", "already_have_thumbnail": False},
         ]
 
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        ydl.download([job["url"]])
+    def download_once(attempt_opts):
+        with yt_dlp.YoutubeDL(attempt_opts) as ydl:
+            return ydl.download([job["url"]])
+
+    retcode = _with_fallback(opts, download_once)
+    if retcode:
+        raise RuntimeError("yt-dlp no pudo completar la descarga")
 
     return {"filepath": str(output_dir)}
